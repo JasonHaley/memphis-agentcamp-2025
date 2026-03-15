@@ -21,6 +21,8 @@ dependencies = [
     "langchain-text-splitters>=1.1.1",
     "markitdown[all]>=0.1.5",
     "pypdf>=6.9.0",
+    "azure-ai-projects>=2.0.1",
+    "agent-framework-azure-ai>=1.0.0rc4",
 ]
 
 [tool.uv]
