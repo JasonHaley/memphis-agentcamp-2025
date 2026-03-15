@@ -1,125 +1,202 @@
-import asyncio
 import os
 import dotenv
 
 from openai import AzureOpenAI
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-
+from azure.core.credentials import AzureKeyCredential
+from azure.search.documents import SearchClient
+from azure.search.documents.indexes import SearchIndexClient
+from azure.search.documents.indexes.models import (
+    SimpleField,
+    SearchableField,
+    SearchField,
+    SearchFieldDataType,
+    SearchIndex,
+    VectorSearch,
+    VectorSearchProfile,
+    HnswAlgorithmConfiguration,
+)
 from langchain_text_splitters import MarkdownHeaderTextSplitter
-from typing import List, Dict
 
 dotenv.load_dotenv(override=True)
 
-def chunk_markdown_file(file_path: str) -> List[Dict]:
-    """
-    Read a markdown file and split it into chunks based on headers.
-    
-    Args:
-        file_path: Path to the markdown file
-    
-    Returns:
-        List of document chunks with metadata
-    """
-    
-    # Step 1: Read the markdown file
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            markdown_content = file.read()
-        print(f"Successfully read file: {file_path}")
-        print(f"File size: {len(markdown_content)} characters\n")
-    except FileNotFoundError:
-        print(f"Error: File '{file_path}' not found.")
-        return []
-    except Exception as e:
-        print(f"Error reading file: {e}")
-        return []
-    
-    # Step 2: Configure the MarkdownHeaderTextSplitter
-    # Define which headers to split on and their metadata keys
-    headers_to_split_on = [
-        ("#", "Header 1"),      # H1 headers
-        ("##", "Header 2"),     # H2 headers
-        ("###", "Header 3"),    # H3 headers
-    ]
-    
-    # Create the splitter instance
-    markdown_splitter = MarkdownHeaderTextSplitter(
-        headers_to_split_on=headers_to_split_on,
-        strip_headers=False  # Keep headers in the content
-    )
-    
-    # Step 3: Split the document and capture chunks
-    chunks = markdown_splitter.split_text(markdown_content)
-    
-    # Convert to list of dictionaries for easier handling
-    chunk_list = []
-    for i, chunk in enumerate(chunks):
-        chunk_dict = {
-            'index': i,
-            'content': chunk.page_content,
-            'metadata': chunk.metadata,
-            'length': len(chunk.page_content)
-        }
-        chunk_list.append(chunk_dict)
-            
-    # Return the full list of chunks for use in next lab
-    return chunk_list
 
-def output_chunk_stats(chunks):
-    if chunks:
-        print("\n" + "=" * 60)
-        print("📊 SUMMARY STATISTICS:")
-        print(f"   Total chunks: {len(chunks)}")
-        
-        total_chars = sum(chunk['length'] for chunk in chunks)
-        avg_chunk_size = total_chars / len(chunks) if chunks else 0
-        print(f"   Average chunk size: {avg_chunk_size:.1f} characters")
-        
-        max_chunk = max(chunks, key=lambda x: x['length'])
-        min_chunk = min(chunks, key=lambda x: x['length'])
-        print(f"   Largest chunk: {max_chunk['length']} characters (chunk #{max_chunk['index']})")
-        print(f"   Smallest chunk: {min_chunk['length']} characters (chunk #{min_chunk['index']})")
+def print_step(number, title):
+    print(f"\n{'=' * 50}")
+    print(f"  STEP {number}: {title}")
+    print(f"{'=' * 50}\n")
+
+
+def chunk_markdown_file(file_path: str) -> list[dict]:
+    """Read a markdown file and split it into chunks based on headers."""
+    with open(file_path, "r", encoding="utf-8") as f:
+        markdown_content = f.read()
+
+    headers_to_split_on = [
+        ("#", "Header 1"),
+        ("##", "Header 2"),
+        ("###", "Header 3"),
+    ]
+
+    splitter = MarkdownHeaderTextSplitter(
+        headers_to_split_on=headers_to_split_on,
+        strip_headers=False,
+    )
+
+    chunks = splitter.split_text(markdown_content)
+
+    return [
+        {
+            "index": i,
+            "content": chunk.page_content,
+            "metadata": chunk.metadata,
+            "length": len(chunk.page_content),
+        }
+        for i, chunk in enumerate(chunks)
+    ]
+
 
 def create_embeddings(text_chunks: list[str], model: str) -> list[list[float]]:
-    # Create a token provider that returns a fresh bearer token on each call
+    """Create embeddings for a list of text chunks using Azure OpenAI."""
     token_provider = get_bearer_token_provider(
         DefaultAzureCredential(),
         "https://cognitiveservices.azure.com/.default",
     )
 
     client = AzureOpenAI(
+        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
         azure_ad_token_provider=token_provider,
         api_version="2024-02-01",
     )
 
-    # model is your Azure deployment name, e.g. "embeddings-prod"
     response = client.embeddings.create(
-        model=model,          # deployment name, not the base model id[web:42]
-        input=text_chunks,    # list of chunk strings
+        model=model,
+        input=text_chunks,
     )
 
     return [item.embedding for item in response.data]
 
-async def main():
-    
+
+def ensure_search_index_exists(search_endpoint, search_key, index_name):
+    """Create an Azure AI Search index if it doesn't already exist."""
+    credential = AzureKeyCredential(search_key)
+    index_client = SearchIndexClient(endpoint=search_endpoint, credential=credential)
+    embedding_dimension = 3072
+
+    existing_names = list(index_client.list_index_names())
+    if index_name in existing_names:
+        print(f"  Index '{index_name}' already exists — skipping creation.")
+        return
+
+    print(f"  Creating index '{index_name}'...")
+
+    fields = [
+        SimpleField(
+            name="id",
+            type=SearchFieldDataType.String,
+            key=True,
+            filterable=True,
+            sortable=True,
+            facetable=True,
+        ),
+        SearchableField(
+            name="content",
+            type=SearchFieldDataType.String,
+        ),
+        SearchField(
+            name="contentVector",
+            type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+            searchable=True,
+            vector_search_dimensions=embedding_dimension,
+            vector_search_profile_name="chunk-vector-profile",
+        ),
+    ]
+
+    vector_search = VectorSearch(
+        algorithms=[
+            HnswAlgorithmConfiguration(
+                name="chunk-hnsw-config",
+                kind="hnsw",
+            )
+        ],
+        profiles=[
+            VectorSearchProfile(
+                name="chunk-vector-profile",
+                algorithm_configuration_name="chunk-hnsw-config",
+            )
+        ],
+    )
+
+    index = SearchIndex(
+        name=index_name,
+        fields=fields,
+        vector_search=vector_search,
+    )
+
+    result = index_client.create_index(index)
+    print(f"  Index '{result.name}' created.")
+
+
+def upload_chunks_to_search(text_chunks, embeddings, search_endpoint, search_key, index_name):
+    """Upload text chunks and their embeddings to the Azure AI Search index."""
+    search_client = SearchClient(
+        endpoint=search_endpoint,
+        index_name=index_name,
+        credential=AzureKeyCredential(search_key),
+    )
+
+    docs = [
+        {
+            "@search.action": "mergeOrUpload",
+            "id": str(i),
+            "content": text,
+            "contentVector": vector,
+        }
+        for i, (text, vector) in enumerate(zip(text_chunks, embeddings))
+    ]
+
+    result = search_client.upload_documents(documents=docs)
+    succeeded = sum(1 for r in result if r.succeeded)
+    print(f"  Uploaded {succeeded}/{len(docs)} documents.")
+
+
+def main():
+    # ── Config ──
     file_path = "./data/doc3.md"
+    randomizer = "jh"
+    index_name = f"{randomizer.lower()}vectorindex"
+    embedding_model = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+    search_endpoint = os.getenv("AZURE_SEARCH_ENDPOINT")
+    search_key = os.getenv("AZURE_SEARCH_API_KEY")
 
+    # ── Step 1: Chunk the markdown document ──
+    print_step(1, "Chunking markdown document")
     chunks = chunk_markdown_file(file_path)
-
-    #output_chunk_stats(chunks)
-
     text_chunks = [item["content"] for item in chunks]
+    total_chars = sum(item["length"] for item in chunks)
+    avg_size = total_chars / len(chunks) if chunks else 0
+    print(f"  Source:  {file_path}")
+    print(f"  Chunks:  {len(chunks)}  (avg {avg_size:.0f} chars)")
 
-    embeddings = create_embeddings(text_chunks, model=os.getenv("AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT"))
-    print("First embedding:")
-    print(embeddings[0])  # a list[float]
-    print(len(embeddings[0]), "dimensions")
+    # ── Step 2: Generate embeddings ──
+    print_step(2, "Generating embeddings")
+    embeddings = create_embeddings(text_chunks, model=embedding_model)
+    print(f"  Model:      {embedding_model}")
+    print(f"  Embeddings: {len(embeddings)}")
+    print(f"  Dimensions: {len(embeddings[0])}")
 
-    print("\nFirst two embeddings:")
-    for i, emb in enumerate(embeddings[:2]):  # slice to first 2[web:68][web:72]
-        print(f"Embedding {i}:")
-        print(emb[:8], "...")  # show just first few dims to keep output short
-        print("dim:", len(emb))
+    # ── Step 3: Ensure search index exists ──
+    print_step(3, "Ensuring search index exists")
+    ensure_search_index_exists(search_endpoint, search_key, index_name)
+
+    # ── Step 4: Upload to search index ──
+    print_step(4, "Uploading to search index")
+    upload_chunks_to_search(text_chunks, embeddings, search_endpoint, search_key, index_name)
+
+    print(f"\n{'=' * 50}")
+    print("  Done! Ingestion pipeline complete.")
+    print(f"{'=' * 50}\n")
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
