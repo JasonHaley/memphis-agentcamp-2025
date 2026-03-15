@@ -1,0 +1,27 @@
+[project]
+name = "memphis-agentcamp-2025"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "azure-identity",
+    "openai>=1.109.1",
+    "python-dotenv",
+    "pydantic",
+    "dotenv-azd",
+    "aiohttp",
+    "agent-framework-core",
+    "agent-framework-devui",
+    "agent-framework-azure-ai-search",
+    "agent-framework-orchestrations",
+    "rich>=14.3.3",
+    "langchain>=1.2.12",
+    "langchain-core>=1.2.19",
+    "langchain-text-splitters>=1.1.1",
+    "markitdown[all]>=0.1.5",
+    "pypdf>=6.9.0",
+]
+
+[tool.uv]
+prerelease = "allow"
