@@ -10,7 +10,7 @@ from azure.search.documents.models import VectorizedQuery
 dotenv.load_dotenv(override=True)
 
 SYSTEM_PROMPT = """
-You are an AI assistant that helps users learn information from the IT support tickent knowledge base.
+You are an AI assistant specializing in generative AI topics such as large language models, prompt engineering, fine-tuning, RAG, AI agents, and related techniques.
 Answer the question using only the provided context.
 Use bullets if the answer has multiple points.
 If the answer is longer than 3 sentences, provide a summary.
@@ -118,6 +118,27 @@ def generate_answer(
     return response.choices[0].message.content
 
 
+def retrieve_context_text_only(
+    query: str,
+    search_client: SearchClient,
+    top_k: int = 3,
+) -> list[dict]:
+    """Search the index using text-only (keyword) search — no vectors."""
+    results = search_client.search(
+        search_text=query,
+        top=top_k,
+    )
+
+    return [
+        {
+            "id": doc["id"],
+            "content": doc["content"],
+            "score": doc.get("@search.score"),
+        }
+        for doc in results
+    ]
+
+
 def run_rag(
     user_query: str,
     search_client: SearchClient,
@@ -125,18 +146,29 @@ def run_rag(
     embedding_model: str,
     chat_model: str,
     use_hybrid: bool,
+    use_text_only: bool = False,
     top_k: int = 3,
     show_search_results: bool = True,
 ):
     """Run the full RAG pipeline: retrieve, build context, generate answer."""
-    mode = "Hybrid" if use_hybrid else "Vector-only"
+    if use_text_only:
+        mode = "Text-only"
+    elif use_hybrid:
+        mode = "Hybrid"
+    else:
+        mode = "Vector-only"
 
     # ── Retrieve ──
     print_step(1, f"Retrieving context ({mode} search)")
-    chunks = retrieve_context(
-        user_query, search_client, openai_client, embedding_model,
-        use_hybrid=use_hybrid, top_k=top_k,
-    )
+    if use_text_only:
+        chunks = retrieve_context_text_only(
+            user_query, search_client, top_k=top_k,
+        )
+    else:
+        chunks = retrieve_context(
+            user_query, search_client, openai_client, embedding_model,
+            use_hybrid=use_hybrid, top_k=top_k,
+        )
     print(f"  Retrieved {len(chunks)} chunks.")
     if show_search_results:
         for rank, chunk in enumerate(chunks, 1):
@@ -201,8 +233,19 @@ def main():
         show_search_results=show_search_results,
     )
 
+    # ── Option C: Text-only RAG ──
+    print("\n\n" + "█" * 50)
+    print("  OPTION C: RAG with Text-only (keyword) search")
+    print("█" * 50)
+    run_rag(
+        user_query, search_client, openai_client,
+        embedding_model, chat_model, use_hybrid=False,
+        use_text_only=True,
+        show_search_results=show_search_results,
+    )
+
     print(f"\n{'=' * 50}")
-    print("  Done! Compare the two answers above.")
+    print("  Done! Compare the three answers above.")
     print(f"{'=' * 50}\n")
 
 
