@@ -213,8 +213,8 @@ async def main():
     search_key = os.getenv("AZURE_SEARCH_API_KEY")
     endpoint = os.environ["AZURE_OPENAI_ENDPOINT"]
 
-    user_query = "Can you explain why only 5% of custom enterprise AI projects succeed?"
-    #user_query = "What are some issues with Surface devices and how were they resolved?"
+    #user_query = "Can you explain why only 5% of custom enterprise AI projects succeed?"
+    user_query = "What are some issues with Surface devices and how were they resolved?"
     #user_query = "What is the weather in Boston today?"
     #user_query = "What is today's top headline in the news?"
     use_hybrid = True
