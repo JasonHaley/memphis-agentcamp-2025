@@ -203,7 +203,8 @@ def main():
     search_endpoint = os.getenv("AZURE_SEARCH_ENDPOINT")
     search_key = os.getenv("AZURE_SEARCH_API_KEY")
 
-    user_query = "Can you explain why only 5% of custom enterprise AI projects succeed?"#"What percentage of companies use generative AI?"
+    #"What percentage of companies use generative AI?"
+    user_query = "Can you explain why only 5% of custom enterprise AI projects succeed?"
     show_search_results = False  # Set to False to hide retrieved chunks
 
     openai_client = get_openai_client()

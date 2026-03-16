@@ -121,8 +121,8 @@ def main():
 
     queries = [
         #"What are the biggest barriers to AI adoption?",
-        #"How does company size affect AI investment?",
-        "What percentage of companies use generative AI?",
+        "How does company size affect AI investment?",
+        #"What percentage of companies use generative AI?",
     ]
 
     openai_client = get_openai_client()

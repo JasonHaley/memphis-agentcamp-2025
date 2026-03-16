@@ -39,7 +39,7 @@ async def main():
     print_step(2, "Running agent")
     agent = Agent(
         client=client,
-        instructions="You're an assistant with worldly knowledge. Answer questions accurately and concisely.",
+        instructions="You're an assistant with worldly knowledge. Answer at a master's level and include at least one paragraph.",
     )
     print(f"  Question: {question}\n")
 

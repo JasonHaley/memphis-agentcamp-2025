@@ -218,7 +218,7 @@ async def main():
     #user_query = "What is the weather in Boston today?"
     #user_query = "What is today's top headline in the news?"
     use_hybrid = True
-    show_search_results = True  # Set to False to hide tool call details
+    show_search_results = False  # Set to False to hide tool call details
 
     # ── Step 1: Set up clients ──
     print_step(1, "Setting up clients")
