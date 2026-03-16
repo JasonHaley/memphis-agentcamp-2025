@@ -162,8 +162,8 @@ def upload_chunks_to_search(text_chunks, embeddings, search_endpoint, search_key
 
 def main():
     # ── Config ──
-    file_path = "./data/doc3.md"
-    randomizer = "jh"
+    file_path = "./data/doc2.md"
+    randomizer = "jh2"
     index_name = f"{randomizer.lower()}vectorindex"
     embedding_model = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
     search_endpoint = os.getenv("AZURE_SEARCH_ENDPOINT")
