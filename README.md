@@ -34,3 +34,5 @@ uv run python demos/01-ingestion-phase.py
 ```
 
 Requires a `.env` file with Azure OpenAI and Azure AI Search credentials. See [CLAUDE.md](.claude/CLAUDE.md) for the full list of required environment variables.
+
+> NOTE: The sample uses a Kaggle dataset from Tobias Bueck. (2025). Customer IT Support - Ticket Dataset. I have filtered out the non-english tickets and added a random create date in order to perform additional search types.
