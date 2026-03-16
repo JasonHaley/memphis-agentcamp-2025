@@ -83,6 +83,34 @@ def compare_hybrid_to_vector(
             print(f"  {'─' * 40}")
 
 
+def keyword_search(
+    queries: list[str],
+    search_client: SearchClient,
+    top_k: int = 3,
+):
+    """Run queries against the search index using keyword (full-text) search only."""
+    for qi, q in enumerate(queries, 1):
+        print()
+        print("=" * 80)
+        print(f"  Query {qi}/{len(queries)}:  {q}")
+        print(f"  Mode: Keyword (full-text)")
+        print("=" * 80)
+
+        results = search_client.search(
+            search_text=q,
+            top=top_k,
+        )
+
+        for rank, doc in enumerate(results, 1):
+            score = doc.get("@search.score", None)
+            if score is not None:
+                print(f"\n  Result {rank}  (id={doc['id']}, score={score:.4f})")
+            else:
+                print(f"\n  Result {rank}  (id={doc['id']})")
+            print(f"  {doc['content']}")
+            print(f"  {'─' * 40}")
+
+
 def main():
     # ── Config ──
     randomizer = "jh"
@@ -104,15 +132,19 @@ def main():
         credential=AzureKeyCredential(search_key),
     )
 
-    # ── Step 1: Vector-only search ──
-    print_step(1, "Vector-only search")
+    # ── Step 1: Keyword (full-text) search ──
+    print_step(1, "Keyword (full-text) search")
+    keyword_search(queries, search_client, top_k=3)
+
+    # ── Step 2: Vector-only search ──
+    print_step(2, "Vector-only search")
     compare_hybrid_to_vector(
         queries, search_client, openai_client, embedding_model,
         use_hybrid=False, top_k=3,
     )
 
-    # ── Step 2: Hybrid search ──
-    print_step(2, "Hybrid search (vector + keyword)")
+    # ── Step 3: Hybrid search ──
+    print_step(3, "Hybrid search (vector + keyword)")
     compare_hybrid_to_vector(
         queries, search_client, openai_client, embedding_model,
         use_hybrid=True, top_k=3,
