@@ -1,4 +1,4 @@
-# Memphis AgentCamp 2025 - Agentic RAG Demos
+# Memphis AgentCamp 2026 - Agentic RAG Demos
 
 Demo scripts for the [Memphis AgentCamp](https://www.meetup.com/memphis-technology-user-groups/events/312731040/) Agentic RAG presentation, walking through a hands-on progression from document ingestion to fully agentic RAG pipelines using Azure OpenAI and the `agent-framework` SDK.
 
